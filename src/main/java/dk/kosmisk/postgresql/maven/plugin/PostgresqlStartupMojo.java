@@ -45,9 +45,15 @@ import static dk.kosmisk.postgresql.maven.plugin.PostgresqlAbstractMojo.DATABASE
 @Mojo(threadSafe = true, name = "startup", defaultPhase = LifecyclePhase.PRE_INTEGRATION_TEST, requiresProject = false)
 public class PostgresqlStartupMojo extends PostgresqlAbstractMojo {
 
+    /**
+     * Where to place the database files. Default is name of folder + "/db/" +
+     * name
+     */
+    @Parameter
+    private File databaseFolder;
 
     /**
-     * Where to place the logfile default is name of database directory + .log
+     * Where to place the log file. Default is name of database folder + .log
      */
     @Parameter
     private File logfile;
@@ -112,8 +118,16 @@ public class PostgresqlStartupMojo extends PostgresqlAbstractMojo {
 
     private Log log;
 
+    private String targetFolder;
+
     @Override
     public void execute() throws MojoExecutionException, MojoFailureException {
+        try {
+            targetFolder = new File(getProject().getBuild().getDirectory()).getCanonicalPath();
+        } catch (IOException ex) {
+            throw new MojoExecutionException("Cannot find target folder", ex);
+        }
+
         if (skip()) {
             return;
         }
@@ -126,13 +140,16 @@ public class PostgresqlStartupMojo extends PostgresqlAbstractMojo {
         try {
             unpackArtifact();
 
-            Path dataDir = dbPath().resolve(name);
-            deleteFileOrFolder(dataDir);
-            mkdirs(dbPath().toFile());
+            Path dataDir = databasePath();
 
             log.info("Starting up database: " + name);
             log.info("- using port: " + resolvePort());
             log.info("- using datadir: " + dataDir);
+            log.info("- using logfile: " + logFile());
+
+            verifyDataPathAndDelete(dataDir);
+
+            mkdirs(dataDir.getParent().toFile());
 
             List<String> prepareCommand = makeCommand("prepare");
 
@@ -144,7 +161,7 @@ public class PostgresqlStartupMojo extends PostgresqlAbstractMojo {
             }
 
             if (settings != null) {
-                File configFile = dbPath().resolve(name).resolve("postgresql.conf").toFile();
+                File configFile = databasePath().resolve("postgresql.conf").toFile();
                 processConfig(configFile, settings);
             }
 
@@ -225,8 +242,19 @@ public class PostgresqlStartupMojo extends PostgresqlAbstractMojo {
      *
      * @return Path object
      */
-    private Path dbPath() {
-        return folder.toPath().resolve("db").toAbsolutePath();
+    private Path databasePath() throws MojoExecutionException {
+        if (databaseFolder == null) {
+            try {
+                databaseFolder = folder.toPath().resolve("db").resolve("name").toFile().getCanonicalFile();
+            } catch (IOException ex) {
+                throw new MojoExecutionException("Cannot locate path of databaseFolder", ex);
+            }
+        }
+        try {
+            return databaseFolder.getCanonicalFile().toPath();
+        } catch (IOException ex) {
+            throw new MojoExecutionException("Cannot locate path of databaseFolder", ex);
+        }
     }
 
     /**
@@ -234,11 +262,34 @@ public class PostgresqlStartupMojo extends PostgresqlAbstractMojo {
      *
      * @return File object
      */
-    private File logFile() {
+    private File logFile() throws MojoExecutionException {
         if (logfile == null) {
-            logfile = dbPath().resolve(name + ".log").toFile();
+            try {
+                logfile = new File(databasePath().toString() + ".log").getCanonicalFile();
+            } catch (IOException ex) {
+                throw new MojoExecutionException("Cannot locate path of logFile", ex);
+            }
         }
         return logfile;
+    }
+
+    private void verifyDataPathAndDelete(Path dataPath) throws MojoExecutionException, IOException {
+        if (dataPath.toFile().exists()) {
+            try {
+                Path traverse = dataPath;
+                Path root = traverse.getRoot();
+                while (!root.equals(traverse)) {
+                    if (traverse.toFile().getCanonicalPath().equals(targetFolder)) {
+                        deleteFileOrFolder(dataPath);
+                        return;
+                    }
+                    traverse = traverse.getParent();
+                }
+                throw new MojoExecutionException("Security violation, will not remove datafoler " + dataPath + " outside target folder");
+            } catch (IOException ex) {
+                throw new MojoExecutionException("Cannot locate path of databaseFolder", ex);
+            }
+        }
     }
 
     /**
@@ -276,8 +327,8 @@ public class PostgresqlStartupMojo extends PostgresqlAbstractMojo {
         env.put("PLUGIN_PASSWORD_SQL", sqlQuote(password));
         env.put("PLUGIN_DATABASE_NAME", name);
         env.put("PLUGIN_DATABASE_NAME_SQL", sqlQuote(name));
-        env.put("PLUGIN_DATA_DIR", dbPath().resolve(name).toString());
-        env.put("PLUGIN_DATA_DIR_SQL", sqlQuote(dbPath().resolve(name).toString()));
+        env.put("PLUGIN_DATA_DIR", databasePath().toString());
+        env.put("PLUGIN_DATA_DIR_SQL", sqlQuote(databasePath().toString()));
         env.put("PLUGIN_LOG_FILE", logFile().toString());
         env.put("PLUGIN_LOG_FILE_SQL", sqlQuote(logFile().toString()));
         return builder;
@@ -298,7 +349,7 @@ public class PostgresqlStartupMojo extends PostgresqlAbstractMojo {
         File file = resolveArtifact();
         String key = file.getAbsolutePath() + " -> " + scriptPath().toAbsolutePath();
         if (ARTIFACT_UNPACKED.add(key) &&
-            ( scriptPath().toFile().mkdirs() || overwrite )) {
+            (scriptPath().toFile().mkdirs() || overwrite)) {
             log.info("Unpacking postgres-binary");
             deleteFileOrFolder(scriptPath());
             if (!scriptPath().toFile().mkdirs()) {
@@ -362,7 +413,7 @@ public class PostgresqlStartupMojo extends PostgresqlAbstractMojo {
                 } else {
                     File parentFile = targetFile.getParentFile();
                     mkdirs(parentFile);
-                    try (InputStream is = zf.getInputStream(entry) ;
+                    try (InputStream is = zf.getInputStream(entry);
                          FileOutputStream fos = new FileOutputStream(targetFile)) {
                         for (;;) {
                             int len = is.read(buffer);
@@ -373,7 +424,7 @@ public class PostgresqlStartupMojo extends PostgresqlAbstractMojo {
                             }
                         }
                     }
-                    if (( entry.getUnixMode() & 0111 ) != 0) {
+                    if ((entry.getUnixMode() & 0111) != 0) {
                         targetFile.setExecutable(true);
                     }
                 }
