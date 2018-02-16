@@ -49,7 +49,8 @@ It has 3 stages
                         <!-- <port>[random-port]</port> -->
                         <!-- <user>${user.name}</user> -->
                         <!-- <password>${user.name}</password> -->
-                        <!-- <logfile>${folder}/db/testbase.log</logfile> -->
+                        <!-- <databaseFolder>${folder}/db/${name}</databaseFolder> -->
+                        <!-- <logfile>${databaseFolder}.log</logfile> -->
                         <!-- <settings>
                             <archive_mode>on</archive_mode>
                         </settings> -->
