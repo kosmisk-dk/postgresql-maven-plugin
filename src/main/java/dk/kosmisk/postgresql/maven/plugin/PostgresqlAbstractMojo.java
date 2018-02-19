@@ -1,7 +1,6 @@
 package dk.kosmisk.postgresql.maven.plugin;
 
 import java.io.File;
-import java.nio.file.Path;
 import java.util.Locale;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentSkipListSet;
@@ -90,7 +89,7 @@ public abstract class PostgresqlAbstractMojo extends AbstractMojo {
         String arch = System.getProperty("os.arch");
         if ("i386".equalsIgnoreCase(arch)) {
             arch = "x86";
-        } else if ("amd64".equalsIgnoreCase(arch)) {
+        } else if ("amd64".equalsIgnoreCase(arch) || "x86_64".equalsIgnoreCase(arch)) {
             arch = "x64";
         }
         return system + "-" + arch;
