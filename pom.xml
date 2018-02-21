@@ -11,10 +11,10 @@
 
     <description>postgresql-maven-plugin integration testing with a real postgresql server instance - maven 3.5+
     
-        This plugin ensures a PostgreSQL server )binary) is downloaded and started up
+        This plugin ensures a PostgreSQL server (binary) is downloaded and started up
         before integraion testing starts.
         
-        Use the maven-surefire-plugin to supply the port, the database is listening on,
+        Use the maven-failsafe-plugin to supply the port, the database is listening on,
         to the integraion tests.
     </description>
 
