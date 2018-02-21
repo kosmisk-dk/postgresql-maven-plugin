@@ -86,11 +86,25 @@ public abstract class PostgresqlAbstractMojo extends AbstractMojo {
         String system = System.getProperty("os.name")
                 .replaceFirst("\\s.*", "")
                 .toLowerCase(Locale.ROOT);
-        String arch = System.getProperty("os.arch");
-        if ("i386".equalsIgnoreCase(arch)) {
-            arch = "x86";
-        } else if ("amd64".equalsIgnoreCase(arch) || "x86_64".equalsIgnoreCase(arch)) {
-            arch = "x64";
+        switch (system) {
+            case "mac":
+                system = "osx";
+                break;
+            default:
+                break;
+        }
+        String arch = System.getProperty("os.arch")
+                .toLowerCase(Locale.ROOT);
+        switch (arch) {
+            case "i386":
+                arch = "x86";
+                break;
+            case "amd64":
+            case "x86_64":
+                arch = "x64";
+                break;
+            default:
+                break;
         }
         return system + "-" + arch;
     }
